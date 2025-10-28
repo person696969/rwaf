@@ -1,0 +1,33 @@
+{
+  "name": "discord-toxicity-bot",
+  "version": "2.0.0",
+  "description": "Advanced Discord anti-toxicity moderation bot",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest",
+    "lint": "eslint src/**/*.js"
+  },
+  "keywords": ["discord", "bot", "moderation", "toxicity"],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "perspective-api-client": "^3.1.0",
+    "quick.db": "^9.1.7",
+    "axios": "^1.6.5",
+    "tesseract.js": "^5.0.4",
+    "express": "^4.18.2",
+    "anti-phish-advanced": "^1.0.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
