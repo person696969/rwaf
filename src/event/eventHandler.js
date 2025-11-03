@@ -18,8 +18,10 @@ class EventHandler {
             await this.bot.dbManager.set('stats', 'startTime', Date.now());
         }
         
+        await this.bot.slashCommandHandler.registerCommands(this.bot.client.user.id);
+        
         this.bot.client.user.setPresence({
-            activities: [{ name: 'messages | n!help', type: 3 }],
+            activities: [{ name: 'messages | n!help & /help', type: 3 }],
             status: 'online'
         });
     }
@@ -76,10 +78,12 @@ class EventHandler {
     }
 
     async onInteractionCreate(interaction) {
-        if (!interaction.isButton()) return;
-        
         try {
-            await this.interactionHandler.handle(interaction);
+            if (interaction.isChatInputCommand()) {
+                await this.bot.slashCommandHandler.handle(interaction);
+            } else if (interaction.isButton()) {
+                await this.interactionHandler.handle(interaction);
+            }
         } catch (error) {
             await this.bot.errorHandler.logError(
                 this.bot.dbManager,

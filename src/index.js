@@ -7,9 +7,11 @@ const PerspectiveService = require('./services/perspectiveService');
 const SpamDetectionService = require('./services/spamDetectionService');
 const ImageAnalysisService = require('./services/imageAnalysisService');
 const LinkCheckService = require('./services/linkCheckService');
+const PhishingDetectionService = require('./services/phishingDetectionService');
 const MultiLineDetector = require('./detectors/multiLineDetector');
 const ExpressServer = require('./server/expressServer');
 const EventHandler = require('./event/eventHandler');
+const SlashCommandHandler = require('./handlers/slashCommandHandler');
 
 class Bot {
     constructor() {
@@ -30,6 +32,7 @@ class Bot {
         this.spamDetectionService = new SpamDetectionService();
         this.imageAnalysisService = new ImageAnalysisService();
         this.linkCheckService = new LinkCheckService();
+        this.phishingDetectionService = new PhishingDetectionService();
         this.multiLineDetector = new MultiLineDetector();
 
         // State
@@ -39,6 +42,9 @@ class Bot {
 
         // Initialize express server
         this.expressServer = new ExpressServer(this.client);
+        
+        // Initialize slash command handler
+        this.slashCommandHandler = new SlashCommandHandler(this);
         
         // Setup event handlers
         this.setupEventHandlers();
@@ -94,6 +100,7 @@ class Bot {
                 this.rateLimiter.cleanup();
                 this.spamDetectionService.cleanup();
                 this.multiLineDetector.cleanup();
+                this.phishingDetectionService.cleanup();
                 
                 const now = Date.now();
                 for (const [id, timestamp] of this.processedMessages.entries()) {

@@ -8,6 +8,8 @@ module.exports = {
     spamProtection: true,
     linkProtection: true,
     mentionSpamProtection: true,
+    phishingDetection: true,
+    raidMode: false,
     
     thresholds: {
         toxicity: 0.75,
@@ -31,6 +33,19 @@ module.exports = {
         3: '24h'
     },
     
+    phishing: {
+        maxStrikes: 3,
+        detectionMode: 'moderate',
+        punishments: {
+            1: 'warn',
+            2: 'kick',
+            3: 'ban'
+        },
+        timeouts: {
+            2: '1h'
+        }
+    },
+    
     maxMentions: 5,
     spamThreshold: 5,
     spamWindow: 10000,
@@ -38,9 +53,15 @@ module.exports = {
     logChannel: null,
     modRole: null,
     immuneRoles: [],
+    autoRole: null,
     
     customWords: [],
     whitelistedLinks: [],
+    whitelistedUsers: [],
+    whitelistedWords: [],
+    blacklistedWords: [],
+    
+    maxStrikes: 3,
     
     createdAt: Date.now(),
     updatedAt: Date.now()

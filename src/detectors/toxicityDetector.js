@@ -1,12 +1,15 @@
 const ProfanityDetector = require('./profanityDetector');
 const ThreatDetector = require('./threatDetector');
 const ExplicitContentDetector = require('./explicitContentDetector');
+const PhishingDetectionService = require('../services/phishingDetectionService');
 const TextNormalizer = require('../utils/textNormalizer');
+const EmbedHelper = require('../utils/embedBuilder');
 const { CONTEXT_REQUIRED_WORDS } = require('../config/constants');
 
 class ToxicityDetector {
     constructor(bot) {
         this.bot = bot;
+        this.phishingDetectionService = new PhishingDetectionService();
     }
 
     async analyze(message, isVerification = false) {
@@ -108,6 +111,21 @@ class ToxicityDetector {
             }
             
             if (!textToAnalyze.trim()) return null;
+            
+            // Check for phishing URLs
+            if (config.phishingDetection && !isVerification) {
+                const urls = this.phishingDetectionService.extractUrls(message.content || '');
+                
+                if (urls && urls.length > 0) {
+                    for (const url of urls) {
+                        const phishingResult = await this.phishingDetectionService.checkUrl(url);
+                        
+                        if (phishingResult.isPhishing || phishingResult.isMalware) {
+                            return await this.handlePhishing(message, url, phishingResult, config, multiLineInfo);
+                        }
+                    }
+                }
+            }
             
             // Check whitelisted words
             if (this.hasWhitelistedWords(textToAnalyze, config.whitelistWords)) {
@@ -317,6 +335,110 @@ class ToxicityDetector {
     async checkMentionSpam(message, config) {
         // Implement mention spam checking logic
         return { isSpam: false };
+    }
+
+    async handlePhishing(message, url, phishingResult, config, multiLineInfo) {
+        try {
+            const Models = require('../database/models/Config').Models;
+            const models = new Models(this.bot.dbManager);
+            
+            await message.delete().catch(err => {
+                console.error('Failed to delete phishing message:', err);
+            });
+            
+            const strikes = await models.phishingStrikes.add(message.guild.id, message.author.id);
+            
+            const phishingConfig = config.phishing || {
+                maxStrikes: 3,
+                punishments: { 1: 'warn', 2: 'kick', 3: 'ban' },
+                timeouts: { 2: '1h' }
+            };
+            
+            const punishmentType = phishingConfig.punishments[strikes] || phishingConfig.punishments[Object.keys(phishingConfig.punishments).pop()];
+            const timeoutDuration = phishingConfig.timeouts[strikes];
+            
+            const threatType = phishingResult.isMalware ? 'malware' : 'phishing';
+            const embedTitle = `🚨 ${threatType.charAt(0).toUpperCase() + threatType.slice(1)} Link Detected`;
+            
+            const member = await message.guild.members.fetch(message.author.id).catch(() => null);
+            
+            const logEmbed = EmbedHelper.error(
+                embedTitle,
+                `**User:** ${message.author.tag} (${message.author.id})\n` +
+                `**Channel:** <#${message.channel.id}>\n` +
+                `**URL:** \`${url.substring(0, 100)}\`\n` +
+                `**Detection Source:** ${phishingResult.source}\n` +
+                `**Confidence:** ${(phishingResult.confidence * 100).toFixed(0)}%\n` +
+                `**Phishing Strikes:** ${strikes}/${phishingConfig.maxStrikes}\n` +
+                `**Action:** ${punishmentType.toUpperCase()}`
+            );
+            
+            if (config.logChannel) {
+                const logChannel = await message.guild.channels.fetch(config.logChannel).catch(() => null);
+                if (logChannel) {
+                    await logChannel.send({ embeds: [logEmbed] }).catch(() => {});
+                }
+            }
+            
+            try {
+                await message.author.send({
+                    embeds: [EmbedHelper.warning(
+                        `⚠️ ${threatType.charAt(0).toUpperCase() + threatType.slice(1)} Link Detected`,
+                        `Your message in **${message.guild.name}** was removed for containing a ${threatType} link.\n\n` +
+                        `**URL:** \`${url.substring(0, 100)}\`\n` +
+                        `**Phishing Strikes:** ${strikes}/${phishingConfig.maxStrikes}\n` +
+                        `**Action:** ${punishmentType.toUpperCase()}`
+                    )]
+                }).catch(() => {});
+            } catch (error) {
+                console.log('Could not DM user about phishing detection');
+            }
+            
+            if (punishmentType === 'timeout' && member && member.moderatable && timeoutDuration) {
+                const duration = this.parseTimeout(timeoutDuration);
+                if (duration) {
+                    await member.timeout(duration, `Phishing link detected (Strike ${strikes})`).catch(err => {
+                        console.error('Failed to timeout user:', err);
+                    });
+                }
+            } else if (punishmentType === 'kick' && member && member.kickable) {
+                await member.kick(`Phishing link detected (Strike ${strikes})`).catch(err => {
+                    console.error('Failed to kick user:', err);
+                });
+            } else if (punishmentType === 'ban' && member && member.bannable) {
+                await member.ban({ reason: `Phishing link detected (Strike ${strikes})` }).catch(err => {
+                    console.error('Failed to ban user:', err);
+                });
+            }
+            
+            await this.incrementStat('phishingBlocked');
+            
+            if (multiLineInfo) {
+                this.bot.multiLineDetector.clear(message.guild.id, message.author.id, message.channel.id);
+            }
+            
+            console.log(`🚨 Phishing link blocked: ${message.author.tag} in ${message.guild.name} (${strikes} strikes)`);
+            
+            return null;
+        } catch (error) {
+            console.error('Error handling phishing:', error);
+            await this.bot.errorHandler.logError(this.bot.dbManager, error, 'handlePhishing', message);
+            return null;
+        }
+    }
+
+    parseTimeout(duration) {
+        const match = duration.match(/^(\d+)([mhd])$/);
+        if (!match) return null;
+        
+        const value = parseInt(match[1]);
+        const unit = match[2];
+        
+        if (unit === 'm') return value * 60 * 1000;
+        if (unit === 'h') return value * 60 * 60 * 1000;
+        if (unit === 'd') return value * 24 * 60 * 60 * 1000;
+        
+        return null;
     }
 
     async handleBlacklistedWord(message, blacklistResult, config, detectionMethod, imageText, multiLineInfo, isVerification) {

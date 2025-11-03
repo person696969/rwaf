@@ -387,6 +387,61 @@ class ErrorLogModel {
     }
 }
 
+class PhishingStrikesModel {
+    constructor(dbManager) {
+        this.dbManager = dbManager;
+        this.type = 'phishing_strikes';
+    }
+
+    /**
+     * Get phishing strikes
+     * @param {string} guildId - Guild ID
+     * @param {string} userId - User ID
+     * @returns {Promise<number>} Number of phishing strikes
+     */
+    async get(guildId, userId) {
+        if (!guildId || !userId) return 0;
+        
+        const strikes = await this.dbManager.get(this.type, `${guildId}_${userId}`);
+        return typeof strikes === 'number' ? strikes : 0;
+    }
+
+    /**
+     * Set phishing strikes
+     * @param {string} guildId - Guild ID
+     * @param {string} userId - User ID
+     * @param {number} strikes - Number of strikes
+     * @returns {Promise<boolean>} Success status
+     */
+    async set(guildId, userId, strikes) {
+        if (!guildId || !userId || typeof strikes !== 'number') return false;
+        return await this.dbManager.set(this.type, `${guildId}_${userId}`, strikes);
+    }
+
+    /**
+     * Add a phishing strike
+     * @param {string} guildId - Guild ID
+     * @param {string} userId - User ID
+     * @returns {Promise<number>} New strike count
+     */
+    async add(guildId, userId) {
+        const current = await this.get(guildId, userId);
+        const newCount = current + 1;
+        await this.set(guildId, userId, newCount);
+        return newCount;
+    }
+
+    /**
+     * Reset phishing strikes
+     * @param {string} guildId - Guild ID
+     * @param {string} userId - User ID
+     * @returns {Promise<boolean>} Success status
+     */
+    async reset(guildId, userId) {
+        return await this.set(guildId, userId, 0);
+    }
+}
+
 /**
  * Database Models Factory
  * Creates model instances with a database manager
@@ -398,6 +453,7 @@ class Models {
         this.history = new HistoryModel(dbManager);
         this.spamStrikes = new SpamStrikesModel(dbManager);
         this.mentionStrikes = new MentionStrikesModel(dbManager);
+        this.phishingStrikes = new PhishingStrikesModel(dbManager);
         this.stats = new StatsModel(dbManager);
         this.errorLog = new ErrorLogModel(dbManager);
     }
@@ -409,6 +465,7 @@ module.exports = {
     HistoryModel,
     SpamStrikesModel,
     MentionStrikesModel,
+    PhishingStrikesModel,
     StatsModel,
     ErrorLogModel,
     Models
