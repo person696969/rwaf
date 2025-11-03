@@ -1,3 +1,7 @@
+const BaseCommand = require('../BaseCommand');
+const EmbedHelper = require('../../utils/embedBuilder');
+const { PermissionFlagsBits } = require('discord.js');
+
 class ImportCommand extends BaseCommand {
     constructor(bot) {
         super(bot);

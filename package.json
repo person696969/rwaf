@@ -9,23 +9,29 @@
     "test": "jest",
     "lint": "eslint src/**/*.js"
   },
-  "keywords": ["discord", "bot", "moderation", "toxicity"],
+  "keywords": [
+    "discord",
+    "bot",
+    "moderation",
+    "toxicity"
+  ],
   "author": "Your Name",
   "license": "MIT",
   "dependencies": {
+    "anti-phish-advanced": "^1.0.0",
+    "axios": "^1.6.5",
+    "better-sqlite3": "^12.4.1",
     "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "perspective-api-client": "^3.1.0",
     "quick.db": "^9.1.7",
-    "axios": "^1.6.5",
-    "tesseract.js": "^5.0.4",
-    "express": "^4.18.2",
-    "anti-phish-advanced": "^1.0.0",
-    "dotenv": "^16.3.1"
+    "tesseract.js": "^5.0.4"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2",
     "eslint": "^8.56.0",
-    "jest": "^29.7.0"
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.2"
   },
   "engines": {
     "node": ">=18.0.0"

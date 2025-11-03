@@ -9,7 +9,7 @@ const ImageAnalysisService = require('./services/imageAnalysisService');
 const LinkCheckService = require('./services/linkCheckService');
 const MultiLineDetector = require('./detectors/multiLineDetector');
 const ExpressServer = require('./server/expressServer');
-const EventHandler = require('./handlers/eventHandler');
+const EventHandler = require('./event/eventHandler');
 
 class Bot {
     constructor() {

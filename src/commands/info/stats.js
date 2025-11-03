@@ -67,25 +67,6 @@ class StatsCommand extends BaseCommand {
         
         await message.reply({ embeds: [statsEmbed] }).catch(() => {});
     }
-
-    async getStats() {
-        try {
-            return {
-                totalMessages: await this.bot.dbManager.get('stats', 'totalMessages') || 0,
-                toxicDetections: await this.bot.dbManager.get('stats', 'toxicDetections') || 0,
-                warningsIssued: await this.bot.dbManager.get('stats', 'warningsIssued') || 0,
-                kicksIssued: await this.bot.dbManager.get('stats', 'kicksIssued') || 0,
-                bansIssued: await this.bot.dbManager.get('stats', 'bansIssued') || 0,
-                timeoutsIssued: await this.bot.dbManager.get('stats', 'timeoutsIssued') || 0,
-                spamBlocked: await this.bot.dbManager.get('stats', 'spamBlocked') || 0,
-                linksBlocked: await this.bot.dbManager.get('stats', 'linksBlocked') || 0,
-                startTime: await this.bot.dbManager.get('stats', 'startTime') || Date.now()
-            };
-        } catch (error) {
-            console.error('Error getting stats:', error);
-            return null;
-        }
-    }
 }
 
 module.exports = StatsCommand;

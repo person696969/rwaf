@@ -1,22 +1,23 @@
-/**
- * Config Command
- * Displays the current guild configuration
- */
-
+const BaseCommand = require('../BaseCommand');
 const { EmbedBuilder } = require('discord.js');
 const { COLORS } = require('../../config/constants');
+const { PermissionFlagsBits } = require('discord.js');
 
-module.exports = {
-    name: 'config',
-    description: 'View current server configuration',
-    usage: 'n!config',
-    aliases: ['configuration', 'settings', 'view'],
-    category: 'admin',
-    adminOnly: true,
-    cooldown: 3,
+class ConfigCommand extends BaseCommand {
+    constructor(bot) {
+        super(bot);
+        this.name = 'config';
+        this.description = 'View current server configuration';
+        this.usage = 'n!config';
+        this.aliases = ['configuration', 'settings', 'view'];
+        this.adminOnly = true;
+        this.requiredPermission = PermissionFlagsBits.Administrator;
+    }
 
-    async execute(message, args, { config }) {
+    async execute(message, args) {
         try {
+            const config = await this.getConfig(message.guild.id);
+            
             const configEmbed = new EmbedBuilder()
                 .setTitle('⚙️ Server Configuration')
                 .setDescription('Current anti-toxicity system settings')
@@ -29,27 +30,12 @@ module.exports = {
                     },
                     {
                         name: '📊 Threshold',
-                        value: `**${config.threshold}/10** (${(config.threshold * 10).toFixed(1)}%)`,
+                        value: config.thresholds ? `**${(config.thresholds.toxicity * 10).toFixed(1)}/10**` : 'Default',
                         inline: true
                     },
                     {
                         name: '⚡ Max Strikes',
-                        value: `**${config.maxStrikes}** strikes`,
-                        inline: true
-                    },
-                    {
-                        name: '⚖️ Punishment',
-                        value: `**${config.punishment.toUpperCase()}**`,
-                        inline: true
-                    },
-                    {
-                        name: '⏱️ Timeout Duration',
-                        value: config.punishment === 'timeout' ? `**${config.timeoutDuration}**` : 'N/A',
-                        inline: true
-                    },
-                    {
-                        name: '🔄 API Rate Limit',
-                        value: `**${config.rateLimit}** calls/min`,
+                        value: `**${config.maxStrikes || 3}** strikes`,
                         inline: true
                     },
                     {
@@ -59,17 +45,17 @@ module.exports = {
                     },
                     {
                         name: '👥 Whitelisted Users',
-                        value: `**${config.whitelist.length}** users`,
+                        value: `**${config.whitelist?.length || 0}** users`,
                         inline: true
                     },
                     {
                         name: '🚫 Blacklisted Words',
-                        value: `**${config.blacklistWords.length}** words`,
+                        value: `**${config.blacklistWords?.length || 0}** words`,
                         inline: true
                     },
                     {
                         name: '✅ Whitelisted Words',
-                        value: `**${config.whitelistWords.length}** words`,
+                        value: `**${config.whitelistWords?.length || 0}** words`,
                         inline: true
                     },
                     {
@@ -106,48 +92,49 @@ module.exports = {
                         name: '👥 Mention Spam',
                         value: config.mentionSpamProtection ? '✅ Enabled' : '❌ Disabled',
                         inline: true
+                    },
+                    {
+                        name: '🤖 Auto-Moderation',
+                        value: config.autoModeration ? '✅ Enabled' : '❌ Disabled',
+                        inline: true
                     }
                 )
-                .setFooter({ 
-                    text: `Server: ${message.guild.name} | Use n!configspam and n!configmentions for detailed settings` 
-                })
+                .setFooter({ text: `Server: ${message.guild.name} | Use n!help for command list` })
                 .setTimestamp();
 
-            // Add guild icon if available
             if (message.guild.iconURL()) {
                 configEmbed.setThumbnail(message.guild.iconURL({ dynamic: true }));
             }
 
-            // Add spam protection details
-            if (config.spamProtection) {
-                configEmbed.addFields({
-                    name: '📊 Spam Settings',
-                    value: `Max Messages: **${config.spamMaxMessages}** in **${config.spamTimeWindow}ms**\nMax Strikes: **${config.spamMaxStrikes}**\nPunishment: **${config.spamPunishment.toUpperCase()}**`,
-                    inline: false
-                });
-            }
-
-            // Add mention spam details
-            if (config.mentionSpamProtection) {
-                configEmbed.addFields({
-                    name: '👥 Mention Spam Settings',
-                    value: `Max Mentions: **${config.mentionSpamMaxMentions}**\nMax Strikes: **${config.mentionSpamMaxStrikes}**\nPunishment: **${config.mentionSpamPunishment.toUpperCase()}**`,
-                    inline: false
-                });
+            // Show punishment configuration
+            if (config.punishments) {
+                let punishmentText = '';
+                for (let i = 1; i <= Math.min(5, Object.keys(config.punishments).length); i++) {
+                    if (config.punishments[i]) {
+                        punishmentText += `Strike ${i}: **${config.punishments[i].toUpperCase()}**\n`;
+                    }
+                }
+                if (punishmentText) {
+                    configEmbed.addFields({
+                        name: '⚖️ Punishment Ladder',
+                        value: punishmentText,
+                        inline: false
+                    });
+                }
             }
 
             await message.reply({ embeds: [configEmbed] });
 
         } catch (error) {
             console.error('Error in config command:', error);
-
-            const errorEmbed = new EmbedBuilder()
-                .setTitle('❌ Error')
-                .setDescription('Failed to retrieve configuration. Please try again.')
-                .setColor(COLORS.ERROR)
-                .setTimestamp();
-
+            const { EmbedHelper } = require('../../utils/embedBuilder');
+            const errorEmbed = EmbedHelper.error(
+                '❌ Error',
+                'Failed to retrieve configuration. Please try again.'
+            );
             await message.reply({ embeds: [errorEmbed] }).catch(() => {});
         }
     }
-};
+}
+
+module.exports = ConfigCommand;

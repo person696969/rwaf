@@ -1,3 +1,7 @@
+const BaseCommand = require('../BaseCommand');
+const EmbedHelper = require('../../utils/embedBuilder');
+const { PermissionFlagsBits } = require('discord.js');
+
 class ExportCommand extends BaseCommand {
     constructor(bot) {
         super(bot);
@@ -16,10 +20,12 @@ class ExportCommand extends BaseCommand {
                 embeds: [EmbedHelper.error('❌ Invalid Type', 'Valid types: `config`, `strikes`, `history`, `all`')] 
             }).catch(() => {});
         }
-         const data = await this.gatherData(message.guild.id, type);
+        
+        try {
+            const data = await this.gatherData(message.guild.id, type);
             const json = JSON.stringify(data, null, 2);
             
-            if (json.length > 8000000) { // Discord file size limit
+            if (json.length > 8000000) {
                 return message.reply({ 
                     embeds: [EmbedHelper.error('❌ Too Large', 'Data is too large to export. Try exporting specific types.')] 
                 }).catch(() => {});
@@ -28,7 +34,7 @@ class ExportCommand extends BaseCommand {
             const { AttachmentBuilder } = require('discord.js');
             const buffer = Buffer.from(json, 'utf-8');
             const attachment = new AttachmentBuilder(buffer, { 
-                name: `${message.guild.name}-${type}-${Date.now()}.json` 
+                name: `${message.guild.name.replace(/[^a-z0-9]/gi, '_')}-${type}-${Date.now()}.json` 
             });
             
             const embed = EmbedHelper.success(
@@ -72,6 +78,6 @@ class ExportCommand extends BaseCommand {
         if (data.history) count += data.history.length;
         return count;
     }
-
+}
 
 module.exports = ExportCommand;

@@ -10,10 +10,7 @@ class TextNormalizer {
             normalized = normalized.replace(/(.)\1{2,}/g, '$1$1');
             
             Object.keys(LEET_SPEAK_MAP).forEach(char => {
-                const esc = char.replace(/[.*+?^${}()|[\]\\]/g, '\\            milliseconds = value * 60 * 1000;
-            break;
-        case 'h':
-            millis');
+                const esc = char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 normalized = normalized.replace(new RegExp(esc, 'g'), LEET_SPEAK_MAP[char]);
             });
             

@@ -1,27 +1,23 @@
-/**
- * Toggle Command
- * Toggles various protection features on/off
- */
-
+const BaseCommand = require('../BaseCommand');
 const { EmbedBuilder } = require('discord.js');
 const { COLORS, VALID_FEATURES, FEATURE_MAP } = require('../../config/constants');
+const { PermissionFlagsBits } = require('discord.js');
 
-module.exports = {
-    name: 'toggle',
-    description: 'Toggle protection features on/off',
-    usage: 'n!toggle <feature>',
-    examples: [
-        'n!toggle image',
-        'n!toggle antibypass',
-        'n!toggle spam'
-    ],
-    aliases: ['switch', 'feature'],
-    category: 'admin',
-    adminOnly: true,
-    cooldown: 3,
+class ToggleCommand extends BaseCommand {
+    constructor(bot) {
+        super(bot);
+        this.name = 'toggle';
+        this.description = 'Toggle protection features on/off';
+        this.usage = 'n!toggle <feature>';
+        this.aliases = ['switch', 'feature'];
+        this.adminOnly = true;
+        this.requiredPermission = PermissionFlagsBits.Administrator;
+    }
 
-    async execute(message, args, { models, config }) {
+    async execute(message, args) {
         try {
+            const config = await this.getConfig(message.guild.id);
+            
             // Show available features if no argument
             if (args.length === 0) {
                 const helpEmbed = new EmbedBuilder()
@@ -45,8 +41,7 @@ module.exports = {
                             inline: false
                         }
                     )
-                    .setTimestamp()
-                    .setFooter({ text: 'Powered by NeoBot' });
+                    .setTimestamp();
 
                 return message.reply({ embeds: [helpEmbed] });
             }
@@ -75,7 +70,7 @@ module.exports = {
 
             // Update configuration
             config[featureName] = newValue;
-            await models.guildConfig.set(message.guild.id, config);
+            await this.saveConfig(message.guild.id, config);
 
             // Feature descriptions
             const featureDescriptions = {
@@ -84,7 +79,7 @@ module.exports = {
                 antibypass: 'Detects toxic content split across multiple messages.',
                 deepcontext: 'Analyzes gaming/entertainment context for context-aware detection.',
                 spam: 'Prevents message spam and flooding.',
-                links: 'Blocks all links and suspicious URLs.',
+                links: 'Blocks suspicious links and phishing attempts.',
                 mentions: 'Prevents excessive user mentions.',
                 automod: 'Automatically applies moderation actions.'
             };
@@ -100,13 +95,12 @@ module.exports = {
                         inline: false
                     },
                     {
-                        name: '📊 Status',
+                        name: '📊 Status Change',
                         value: `${oldValue ? '✅' : '❌'} → ${newValue ? '✅' : '❌'}`,
                         inline: true
                     }
                 )
-                .setTimestamp()
-                .setFooter({ text: 'Powered by NeoBot' });
+                .setTimestamp();
 
             // Add feature-specific notes
             if (feature === 'deepcontext') {
@@ -124,7 +118,7 @@ module.exports = {
             } else if (feature === 'links') {
                 successEmbed.addFields({
                     name: '⚠️ Warning',
-                    value: newValue ? 'All links will be blocked. Consider whitelisting trusted users.' : 'Links are now allowed again.',
+                    value: newValue ? 'Suspicious links will be blocked. Legitimate links are usually allowed.' : 'Link protection is now disabled.',
                     inline: false
                 });
             }
@@ -147,14 +141,14 @@ module.exports = {
 
         } catch (error) {
             console.error('Error in toggle command:', error);
-
-            const errorEmbed = new EmbedBuilder()
-                .setTitle('❌ Error')
-                .setDescription('Failed to toggle feature. Please try again.')
-                .setColor(COLORS.ERROR)
-                .setTimestamp();
-
+            const { EmbedHelper } = require('../../utils/embedBuilder');
+            const errorEmbed = EmbedHelper.error(
+                '❌ Error',
+                'Failed to toggle feature. Please try again.'
+            );
             await message.reply({ embeds: [errorEmbed] }).catch(() => {});
         }
     }
-};
+}
+
+module.exports = ToggleCommand;

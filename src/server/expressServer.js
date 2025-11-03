@@ -34,8 +34,8 @@ class ExpressServer {
     }
 
     start() {
-        this.app.listen(this.port, () => {
-            console.log(`🌐 Web server running on port ${this.port}`);
+        this.app.listen(this.port, '0.0.0.0', () => {
+            console.log(`🌐 Web server running on 0.0.0.0:${this.port}`);
         });
     }
 }

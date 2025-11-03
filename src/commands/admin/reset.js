@@ -1,28 +1,25 @@
-/**
- * Reset Command
- * Resets all server configuration and data (requires confirmation)
- */
-
+const BaseCommand = require('../BaseCommand');
 const { EmbedBuilder } = require('discord.js');
 const { COLORS } = require('../../config/constants');
+const { PermissionFlagsBits } = require('discord.js');
 
-// Temporary storage for pending resets (in-memory)
-const pendingResets = new Map();
+class ResetCommand extends BaseCommand {
+    constructor(bot) {
+        super(bot);
+        this.name = 'reset';
+        this.description = 'Reset all server data (requires confirmation)';
+        this.usage = 'n!reset';
+        this.aliases = ['resetserver', 'cleardata'];
+        this.adminOnly = true;
+        this.requiredPermission = PermissionFlagsBits.Administrator;
+        this.pendingResets = new Map();
+    }
 
-module.exports = {
-    name: 'reset',
-    description: 'Reset all server data (requires confirmation)',
-    usage: 'n!reset',
-    aliases: ['resetserver', 'cleardata'],
-    category: 'admin',
-    adminOnly: true,
-    cooldown: 10,
-
-    async execute(message, args, { models, client }) {
+    async execute(message, args) {
         try {
             // Check if this is a confirmation
             if (args[0] === 'confirm') {
-                return await handleResetConfirm(message, models);
+                return await this.handleResetConfirm(message);
             }
 
             // Show warning and request confirmation
@@ -33,7 +30,7 @@ module.exports = {
                 .addFields(
                     {
                         name: '🗑️ Data to be Deleted',
-                        value: '• Configuration settings\n• User strikes (all users)\n• User spam strikes\n• User mention strikes\n• Message history\n• Whitelist/Blacklist\n• All custom word lists',
+                        value: '• Configuration settings\n• User strikes (all users)\n• Message history\n• Whitelist/Blacklist\n• All custom word lists',
                         inline: false
                     },
                     {
@@ -53,125 +50,128 @@ module.exports = {
             await message.reply({ embeds: [warningEmbed] });
 
             // Store pending reset
-            pendingResets.set(message.author.id, {
+            this.pendingResets.set(message.author.id, {
                 guildId: message.guild.id,
                 timestamp: Date.now()
             });
 
             // Auto-expire after 30 seconds
             setTimeout(() => {
-                if (pendingResets.has(message.author.id)) {
-                    pendingResets.delete(message.author.id);
+                if (this.pendingResets.has(message.author.id)) {
+                    this.pendingResets.delete(message.author.id);
                 }
             }, 30000);
 
         } catch (error) {
             console.error('Error in reset command:', error);
-
-            const errorEmbed = new EmbedBuilder()
-                .setTitle('❌ Error')
-                .setDescription('Failed to initiate reset. Please try again.')
-                .setColor(COLORS.ERROR)
-                .setTimestamp();
-
+            const { EmbedHelper } = require('../../utils/embedBuilder');
+            const errorEmbed = EmbedHelper.error(
+                '❌ Error',
+                'Failed to initiate reset. Please try again.'
+            );
             await message.reply({ embeds: [errorEmbed] }).catch(() => {});
         }
     }
-};
 
-/**
- * Handle reset confirmation
- * @param {Message} message - Discord message
- * @param {Models} models - Database models
- */
-async function handleResetConfirm(message, models) {
-    try {
-        // Check if there's a pending reset for this user
-        const pending = pendingResets.get(message.author.id);
+    async handleResetConfirm(message) {
+        try {
+            const pending = this.pendingResets.get(message.author.id);
 
-        if (!pending) {
-            const noPendingEmbed = new EmbedBuilder()
-                .setTitle('❌ No Pending Reset')
-                .setDescription('No reset confirmation is pending. Use `n!reset` first.')
-                .setColor(COLORS.ERROR)
-                .setTimestamp();
+            if (!pending) {
+                const noPendingEmbed = new EmbedBuilder()
+                    .setTitle('❌ No Pending Reset')
+                    .setDescription('No reset confirmation is pending. Use `n!reset` first.')
+                    .setColor(COLORS.ERROR)
+                    .setTimestamp();
 
-            return message.reply({ embeds: [noPendingEmbed] });
-        }
+                return message.reply({ embeds: [noPendingEmbed] });
+            }
 
-        // Verify guild ID matches
-        if (pending.guildId !== message.guild.id) {
-            const wrongGuildEmbed = new EmbedBuilder()
-                .setTitle('❌ Guild Mismatch')
-                .setDescription('This reset confirmation is for a different server.')
-                .setColor(COLORS.ERROR)
-                .setTimestamp();
+            if (pending.guildId !== message.guild.id) {
+                const wrongGuildEmbed = new EmbedBuilder()
+                    .setTitle('❌ Guild Mismatch')
+                    .setDescription('This reset confirmation is for a different server.')
+                    .setColor(COLORS.ERROR)
+                    .setTimestamp();
 
-            return message.reply({ embeds: [wrongGuildEmbed] });
-        }
+                return message.reply({ embeds: [wrongGuildEmbed] });
+            }
 
-        // Check if confirmation expired (30 seconds)
-        if (Date.now() - pending.timestamp > 30000) {
-            pendingResets.delete(message.author.id);
+            if (Date.now() - pending.timestamp > 30000) {
+                this.pendingResets.delete(message.author.id);
 
-            const expiredEmbed = new EmbedBuilder()
-                .setTitle('⏱️ Confirmation Expired')
-                .setDescription('Reset confirmation has expired. Use `n!reset` to start again.')
+                const expiredEmbed = new EmbedBuilder()
+                    .setTitle('⏱️ Confirmation Expired')
+                    .setDescription('Reset confirmation has expired. Use `n!reset` to start again.')
+                    .setColor(COLORS.WARNING)
+                    .setTimestamp();
+
+                return message.reply({ embeds: [expiredEmbed] });
+            }
+
+            this.pendingResets.delete(message.author.id);
+
+            const processingEmbed = new EmbedBuilder()
+                .setTitle('⏳ Processing Reset...')
+                .setDescription('Deleting all server data. Please wait...')
                 .setColor(COLORS.WARNING)
                 .setTimestamp();
 
-            return message.reply({ embeds: [expiredEmbed] });
-        }
+            const processingMsg = await message.reply({ embeds: [processingEmbed] });
 
-        // Remove pending reset
-        pendingResets.delete(message.author.id);
+            // Delete all guild data
+            const configKeys = await this.bot.dbManager.getAllKeys('config');
+            const strikeKeys = await this.bot.dbManager.getAllKeys('strikes');
+            const historyKeys = await this.bot.dbManager.getAllKeys('history');
 
-        // Show processing message
-        const processingEmbed = new EmbedBuilder()
-            .setTitle('⏳ Processing Reset...')
-            .setDescription('Deleting all server data. Please wait...')
-            .setColor(COLORS.WARNING)
-            .setTimestamp();
-
-        const processingMsg = await message.reply({ embeds: [processingEmbed] });
-
-        // Delete all guild data
-        const dbManager = models.guildConfig.dbManager;
-        await dbManager.deleteAllForGuild(message.guild.id);
-
-        // Success message
-        const successEmbed = new EmbedBuilder()
-            .setTitle('✅ Server Reset Complete')
-            .setDescription('All server data has been permanently deleted.')
-            .setColor(COLORS.SUCCESS)
-            .addFields(
-                {
-                    name: '🔄 What Happened',
-                    value: '• All configuration reset to defaults\n• All user strikes cleared\n• All history deleted\n• All custom lists removed',
-                    inline: false
-                },
-                {
-                    name: '▶️ Next Steps',
-                    value: 'Use `n!enable` to activate the anti-toxicity system with default settings.',
-                    inline: false
+            for (const key of configKeys) {
+                if (key.includes(message.guild.id)) {
+                    await this.bot.dbManager.delete('config', key);
                 }
-            )
-            .setTimestamp()
-            .setFooter({ text: 'Powered by NeoBot' });
+            }
+            for (const key of strikeKeys) {
+                if (key.includes(message.guild.id)) {
+                    await this.bot.dbManager.delete('strikes', key);
+                }
+            }
+            for (const key of historyKeys) {
+                if (key.includes(message.guild.id)) {
+                    await this.bot.dbManager.delete('history', key);
+                }
+            }
 
-        await processingMsg.edit({ embeds: [successEmbed] });
+            const successEmbed = new EmbedBuilder()
+                .setTitle('✅ Server Reset Complete')
+                .setDescription('All server data has been permanently deleted.')
+                .setColor(COLORS.SUCCESS)
+                .addFields(
+                    {
+                        name: '🔄 What Happened',
+                        value: '• All configuration reset to defaults\n• All user strikes cleared\n• All history deleted\n• All custom lists removed',
+                        inline: false
+                    },
+                    {
+                        name: '▶️ Next Steps',
+                        value: 'Use `n!enable` to activate the anti-toxicity system with default settings.',
+                        inline: false
+                    }
+                )
+                .setTimestamp();
 
-        console.log(`🔄 Server ${message.guild.name} (${message.guild.id}) data has been reset by ${message.author.tag}`);
+            await processingMsg.edit({ embeds: [successEmbed] });
 
-    } catch (error) {
-        console.error('Error confirming reset:', error);
+            console.log(`🔄 Server ${message.guild.name} (${message.guild.id}) data has been reset by ${message.author.tag}`);
 
-        const errorEmbed = new EmbedBuilder()
-            .setTitle('❌ Reset Failed')
-            .setDescription('An error occurred while resetting server data. Please try again or contact support.')
-            .setColor(COLORS.ERROR)
-            .setTimestamp();
-
-        await message.reply({ embeds: [errorEmbed] }).catch(() => {});
+        } catch (error) {
+            console.error('Error confirming reset:', error);
+            const { EmbedHelper } = require('../../utils/embedBuilder');
+            const errorEmbed = EmbedHelper.error(
+                '❌ Reset Failed',
+                'An error occurred while resetting server data. Please try again.'
+            );
+            await message.reply({ embeds: [errorEmbed] }).catch(() => {});
+        }
     }
 }
+
+module.exports = ResetCommand;
